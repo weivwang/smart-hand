@@ -1,0 +1,21 @@
+llm:
+  provider: deepseek
+  deepseek:
+    apiKey: ${DEEPSEEK_API_KEY}
+    model: deepseek-chat
+    baseUrl: https://api.deepseek.com
+  ollama:
+    model: llama3
+    baseUrl: http://localhost:11434/v1
+
+audio:
+  whisperApiKey: ${OPENAI_API_KEY}
+  silenceThreshold: 1500
+
+serial:
+  baudRate: 115200
+  autoDetect: true
+
+motion:
+  interpolationSteps: 5
+  frameDelay: 100
