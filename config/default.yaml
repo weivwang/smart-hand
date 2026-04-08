@@ -9,7 +9,7 @@ llm:
     baseUrl: http://localhost:11434/v1
 
 audio:
-  whisperApiKey: ${OPENAI_API_KEY}
+  whisperModel: models/ggml-small.bin
   silenceThreshold: 1500
 
 serial:

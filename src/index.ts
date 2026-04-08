@@ -1,7 +1,7 @@
 import { loadConfig } from "./config.js";
 import { createLLMProvider } from "./llm/provider.js";
 import { Transcriber } from "./audio/transcriber.js";
-import { recordUntilSilence } from "./audio/recorder.js";
+import { waitForSpacebarThenRecord } from "./audio/recorder.js";
 import { interpolateFrames } from "./motion/interpolator.js";
 import { SerialConnection } from "./serial/connection.js";
 import { TerminalUI } from "./ui/terminal.js";
@@ -20,9 +20,9 @@ async function main(): Promise<void> {
   const llm = createLLMProvider(config);
   console.log(`✅ LLM provider: ${config.llm.provider}`);
 
-  // Initialize transcriber
-  const transcriber = new Transcriber(config.audio.whisperApiKey);
-  console.log("✅ Whisper transcriber ready");
+  // Initialize transcriber (local whisper-cli, no API key needed)
+  const transcriber = new Transcriber(config.audio.whisperModel);
+  console.log("✅ Whisper (local) ready");
 
   // Initialize serial connection
   const serial = new SerialConnection(
@@ -40,18 +40,18 @@ async function main(): Promise<void> {
     console.log("   Running in simulation mode (commands printed to terminal)");
   }
 
-  console.log("\n🎤 开始说话吧！\n");
+  console.log("\n🎤 按空格键开始录音，说完自动停止\n");
 
   // Main loop
   while (true) {
     try {
-      // 1. Wait for voice input
+      // 1. Wait for spacebar, then record
       ui.setStatus("waiting");
-      const audioBuffer = await recordUntilSilence({
+      const audioBuffer = await waitForSpacebarThenRecord({
         silenceThreshold: config.audio.silenceThreshold,
       });
 
-      // 2. Transcribe
+      // 2. Transcribe (local whisper-cli)
       ui.setStatus("transcribing");
       const text = await transcriber.transcribe(audioBuffer);
 
@@ -89,7 +89,6 @@ async function main(): Promise<void> {
     } catch (err) {
       ui.setStatus("error");
       ui.logError((err as Error).message);
-      // Brief pause before next cycle
       await sleep(1000);
     }
   }

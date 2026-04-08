@@ -33,7 +33,7 @@ export interface AppConfig {
     };
   };
   audio: {
-    whisperApiKey: string;
+    whisperModel: string;
     silenceThreshold: number;
   };
   serial: {

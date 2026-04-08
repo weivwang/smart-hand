@@ -1,5 +1,4 @@
 import record from "node-record-lpcm16";
-import readline from "readline";
 
 export interface RecorderOptions {
   sampleRate?: number;
@@ -14,7 +13,7 @@ function computeRMS(chunk: Buffer): number {
   // Skip WAV header if present (first chunk starts with "RIFF")
   let offset = 0;
   if (chunk.length > 44 && chunk[0] === 0x52 && chunk[1] === 0x49) {
-    offset = 44; // skip WAV header
+    offset = 44;
   }
 
   const samples = Math.floor((chunk.length - offset) / 2);
@@ -28,38 +27,49 @@ function computeRMS(chunk: Buffer): number {
 }
 
 /**
- * Wait for user to press Enter, then record until silence or maxDuration.
- * This is more reliable than pure VAD and better for demos.
+ * Wait for spacebar press, then record until silence.
  */
-export function recordUntilSilence(
+export function waitForSpacebarThenRecord(
   options: RecorderOptions = {},
 ): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+
+    // Enable raw mode to detect individual keypresses
+    stdin.setRawMode(true);
+    stdin.resume();
+
+    const onKeypress = (key: Buffer) => {
+      // Ctrl+C → exit
+      if (key[0] === 3) {
+        stdin.setRawMode(wasRaw ?? false);
+        process.exit(0);
+      }
+
+      // Space (0x20)
+      if (key[0] === 0x20) {
+        stdin.removeListener("data", onKeypress);
+        stdin.setRawMode(wasRaw ?? false);
+        stdin.pause();
+
+        doRecord(options)
+          .then(resolve)
+          .catch(reject);
+      }
+    };
+
+    stdin.on("data", onKeypress);
+  });
+}
+
+function doRecord(options: RecorderOptions = {}): Promise<Buffer> {
   const {
     sampleRate = 16000,
     silenceThreshold = 1500,
     maxDuration = 15000,
   } = options;
 
-  return new Promise((resolve, reject) => {
-    // Wait for Enter key to start recording
-    const rl = readline.createInterface({ input: process.stdin });
-
-    const onLine = () => {
-      rl.close();
-      doRecord(sampleRate, silenceThreshold, maxDuration)
-        .then(resolve)
-        .catch(reject);
-    };
-
-    rl.once("line", onLine);
-  });
-}
-
-function doRecord(
-  sampleRate: number,
-  silenceThreshold: number,
-  maxDuration: number,
-): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let silenceTimer: NodeJS.Timeout | null = null;
@@ -84,7 +94,6 @@ function doRecord(
       recording.stop();
     };
 
-    // Safety timeout
     maxTimer = setTimeout(() => {
       stopRecording();
     }, maxDuration);
@@ -102,7 +111,6 @@ function doRecord(
           silenceTimer = null;
         }
       } else if (hasSound && !silenceTimer) {
-        // Had sound, now silent → start countdown
         silenceTimer = setTimeout(() => {
           stopRecording();
         }, silenceThreshold);

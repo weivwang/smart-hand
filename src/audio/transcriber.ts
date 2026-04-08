@@ -1,47 +1,59 @@
-import OpenAI from "openai";
+import { execFile } from "child_process";
+import { writeFileSync, unlinkSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+import { resolve } from "path";
 
 export class Transcriber {
-  private client: OpenAI;
+  private modelPath: string;
 
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+  constructor(modelPath?: string) {
+    this.modelPath = modelPath ?? resolve(process.cwd(), "models/ggml-small.bin");
   }
 
   /**
-   * Transcribe audio buffer to text using Whisper API.
-   * Retries once on failure.
+   * Transcribe audio buffer to text using local whisper-cli.
+   * No API key needed — runs entirely on your machine.
    */
   async transcribe(audioBuffer: Buffer): Promise<string> {
+    const tmpPath = join(tmpdir(), `smart-hand-${Date.now()}.wav`);
+
     try {
-      const file = new File(
-        [new Blob([audioBuffer])],
-        "audio.wav",
-        { type: "audio/wav" },
-      );
-      return await this.callWhisper(file);
-    } catch (err) {
-      // Retry once
-      try {
-        const file = new File(
-          [new Blob([audioBuffer])],
-          "audio.wav",
-          { type: "audio/wav" },
-        );
-        return await this.callWhisper(file);
-      } catch (retryErr) {
-        throw new Error(
-          `Whisper transcription failed after retry: ${(retryErr as Error).message}`,
-        );
-      }
+      writeFileSync(tmpPath, audioBuffer);
+
+      const text = await this.callWhisper(tmpPath);
+      return text.trim();
+    } finally {
+      try { unlinkSync(tmpPath); } catch { /* ignore */ }
     }
   }
 
-  private async callWhisper(file: File): Promise<string> {
-    const response = await this.client.audio.transcriptions.create({
-      model: "whisper-1",
-      file,
-      language: "zh",
+  private callWhisper(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      execFile(
+        "whisper-cli",
+        [
+          "-m", this.modelPath,
+          "-f", filePath,
+          "-l", "zh",
+          "--no-timestamps",
+          "-np",        // no progress
+        ],
+        { timeout: 30000 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(`Whisper failed: ${error.message}\n${stderr}`));
+            return;
+          }
+          // whisper-cli outputs transcription to stdout
+          const text = stdout
+            .split("\n")
+            .filter((line) => !line.startsWith("whisper_") && line.trim().length > 0)
+            .join(" ")
+            .trim();
+          resolve(text);
+        },
+      );
     });
-    return response.text;
   }
 }
