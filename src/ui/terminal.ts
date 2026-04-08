@@ -1,7 +1,7 @@
 type Status = "waiting" | "recording" | "transcribing" | "thinking" | "executing" | "error";
 
 const STATUS_LABELS: Record<Status, string> = {
-  waiting: "🎤 等待语音输入...",
+  waiting: "🎤 按 Enter 开始录音...",
   recording: "🔴 录音中...",
   transcribing: "📝 语音识别中...",
   thinking: "🧠 AI 推理中...",
@@ -42,7 +42,7 @@ export class TerminalUI {
     console.log("");
     console.log("╔══════════════════════════════════════╗");
     console.log("║   🤖 Smart Hand — AI 语音控制机械手   ║");
-    console.log("║   说话即可控制，Ctrl+C 退出           ║");
+    console.log("║   按 Enter 录音，说完自动停止          ║");
     console.log("╚══════════════════════════════════════╝");
     console.log("");
   }
